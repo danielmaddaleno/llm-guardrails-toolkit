@@ -72,3 +72,12 @@ safe_response = pipeline.validate_output(llm_response)
 ## License
 
 MIT
+
+
+## Installation
+
+```bash
+git clone https://github.com/danielmaddaleno/llm-guardrails-toolkit.git
+cd llm-guardrails-toolkit
+pip install -r requirements.txt
+```
