@@ -81,3 +81,7 @@ git clone https://github.com/danielmaddaleno/llm-guardrails-toolkit.git
 cd llm-guardrails-toolkit
 pip install -r requirements.txt
 ```
+
+## Usage
+
+See `docs/` for detailed examples.
