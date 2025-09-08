@@ -89,3 +89,11 @@ See `docs/` for detailed examples.
 ## Configuration
 
 Configuration files live in `configs/`. Copy the sample and edit.
+
+## Development
+
+```bash
+make install  # Install deps
+make test     # Run tests
+make lint     # Linters
+```
