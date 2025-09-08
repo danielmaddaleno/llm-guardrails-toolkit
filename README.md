@@ -85,3 +85,7 @@ pip install -r requirements.txt
 ## Usage
 
 See `docs/` for detailed examples.
+
+## Configuration
+
+Configuration files live in `configs/`. Copy the sample and edit.
