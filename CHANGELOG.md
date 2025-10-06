@@ -7,3 +7,12 @@ All notable changes to this project.
 ### Added
 - Initial project scaffolding
 - Core module implementation
+
+## [0.2.0]
+
+### Added
+- Configuration support
+- Input validation
+
+### Fixed
+- Edge case in core logic
