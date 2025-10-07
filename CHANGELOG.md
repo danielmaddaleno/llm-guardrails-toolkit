@@ -34,3 +34,12 @@ All notable changes to this project.
 
 ### Changed
 - Refactored internals
+
+## [0.5.0]
+
+### Added
+- Full documentation
+- Pre-commit hooks
+
+### Fixed
+- Performance
