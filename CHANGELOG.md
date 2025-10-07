@@ -25,3 +25,12 @@ All notable changes to this project.
 
 ### Changed
 - Improved error handling
+
+## [0.4.0]
+
+### Added
+- Type annotations
+- Logging
+
+### Changed
+- Refactored internals
