@@ -16,3 +16,12 @@ All notable changes to this project.
 
 ### Fixed
 - Edge case in core logic
+
+## [0.3.0]
+
+### Added
+- Test suite
+- CI pipeline
+
+### Changed
+- Improved error handling
