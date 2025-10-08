@@ -43,3 +43,10 @@ All notable changes to this project.
 
 ### Fixed
 - Performance
+
+## [1.0.0]
+
+### Changed
+- Stable release
+- API finalized
+- Updated dependencies
