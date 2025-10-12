@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """LLM Guardrails Toolkit — input/output validation for LLM applications."""
 
 from guardrails.pipeline import GuardrailsPipeline
