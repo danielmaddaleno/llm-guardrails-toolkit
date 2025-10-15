@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """AWS Bedrock integration – wraps invoke_model with guardrails."""
 
 from __future__ import annotations
