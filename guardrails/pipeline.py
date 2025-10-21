@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Core guardrails pipeline orchestrator."""
 
 from __future__ import annotations
