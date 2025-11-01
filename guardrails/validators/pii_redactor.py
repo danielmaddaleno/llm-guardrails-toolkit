@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """PII detection and redaction validator."""
 
 import re
