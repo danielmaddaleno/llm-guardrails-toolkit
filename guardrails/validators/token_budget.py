@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Token budget enforcement validator."""
 
 from guardrails.pipeline import BaseValidator, GuardrailViolation
