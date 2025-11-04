@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Toxicity / harmful-content detector using keyword heuristics."""
 
 import re
