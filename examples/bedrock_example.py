@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+"""Bedrock Example — core implementation."""
 """Example: using GuardrailsPipeline with AWS Bedrock."""
 
 from guardrails.pipeline import GuardrailsPipeline
