@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+"""Pipeline — core implementation."""
 """Core guardrails pipeline orchestrator."""
 
 from __future__ import annotations
