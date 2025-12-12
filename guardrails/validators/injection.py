@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+"""Injection — core implementation."""
 """Prompt injection detection validator."""
 
 import re
