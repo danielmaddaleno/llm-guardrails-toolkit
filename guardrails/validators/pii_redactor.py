@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+"""Pii Redactor — core implementation."""
 """PII detection and redaction validator."""
 
 import re
