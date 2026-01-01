@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Author: Daniel Maddaleno
 """Bedrock Example — core implementation."""
 """Example: using GuardrailsPipeline with AWS Bedrock."""
 
