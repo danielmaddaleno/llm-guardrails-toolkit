@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Author: Daniel Maddaleno
 """Bedrock — core implementation."""
 """AWS Bedrock integration – wraps invoke_model with guardrails."""
 
