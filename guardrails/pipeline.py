@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Author: Daniel Maddaleno
 """Pipeline — core implementation."""
 """Core guardrails pipeline orchestrator."""
 
