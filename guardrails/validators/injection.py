@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Author: Daniel Maddaleno
 """Injection — core implementation."""
 """Prompt injection detection validator."""
 
