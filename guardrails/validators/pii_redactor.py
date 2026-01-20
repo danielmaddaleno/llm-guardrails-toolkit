@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Author: Daniel Maddaleno
 """Pii Redactor — core implementation."""
 """PII detection and redaction validator."""
 
