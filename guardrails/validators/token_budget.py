@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Author: Daniel Maddaleno
 """Token Budget — core implementation."""
 """Token budget enforcement validator."""
 
