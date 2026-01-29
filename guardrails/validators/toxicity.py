@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Author: Daniel Maddaleno
 """Toxicity — core implementation."""
 """Toxicity / harmful-content detector using keyword heuristics."""
 
