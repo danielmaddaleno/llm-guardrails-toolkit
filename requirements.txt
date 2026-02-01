@@ -4,3 +4,7 @@ boto3>=1.28
 # Testing
 pytest>=7.0
 pytest-cov>=4.0
+# Linting
+flake8>=6.0
+black>=23.0
+mypy>=1.0
