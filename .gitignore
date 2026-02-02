@@ -6,3 +6,9 @@ build/
 .venv/
 .env
 .pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
