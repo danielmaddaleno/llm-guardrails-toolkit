@@ -14,3 +14,9 @@ Llm Guardrails Toolkit uses a modular architecture.
 ## Error Handling
 
 Public functions validate inputs and raise descriptive exceptions.
+
+## Performance
+
+- Batch processing for large datasets
+- Lazy loading
+- Caching of results
