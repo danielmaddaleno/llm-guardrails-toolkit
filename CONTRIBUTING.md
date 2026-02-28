@@ -28,3 +28,9 @@ make test
 ## Reporting Issues
 
 Use GitHub Issues to report bugs or request features.
+
+## Code Review
+
+- All PRs need 1 review
+- CI must pass
+- Use conventional commits
