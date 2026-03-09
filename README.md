@@ -1,3 +1,6 @@
+![Tests](https://github.com/danielmaddaleno/llm-guardrails-toolkit/actions/workflows/tests.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
 # LLM Guardrails Toolkit
 
 Lightweight Python framework for adding input/output guardrails to LLM applications. Designed for enterprise GenAI deployments that need content filtering, PII detection, prompt injection prevention, and response validation.
