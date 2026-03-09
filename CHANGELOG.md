@@ -50,3 +50,9 @@ All notable changes to this project.
 - Stable release
 - API finalized
 - Updated dependencies
+
+## [1.1.0]
+
+### Fixed
+- Minor bug fixes
+- Dependency updates
