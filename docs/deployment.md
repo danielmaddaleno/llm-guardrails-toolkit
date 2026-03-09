@@ -11,3 +11,8 @@
 2. Install deps
 3. Configure
 4. Run
+
+## Monitoring
+
+- Use logging module
+- Check health endpoints
