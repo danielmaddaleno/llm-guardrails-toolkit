@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+"""Test Injection — automated test suite."""
 """Unit tests for prompt-injection detection."""
 
 import pytest
