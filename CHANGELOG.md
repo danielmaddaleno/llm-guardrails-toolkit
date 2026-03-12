@@ -56,3 +56,9 @@ All notable changes to this project.
 ### Fixed
 - Minor bug fixes
 - Dependency updates
+
+## [1.2.0]
+
+### Added
+- Improved logging
+- Better error messages
