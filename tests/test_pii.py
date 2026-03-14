@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+"""Test Pii — automated test suite."""
 """Unit tests for PII redaction validator."""
 
 import pytest
