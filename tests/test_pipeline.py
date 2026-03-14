@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+"""Test Pipeline — automated test suite."""
 """Integration tests for the guardrails pipeline."""
 
 import pytest
