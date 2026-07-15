@@ -1,5 +1,6 @@
 from guardrails.validators.injection import PromptInjectionDetector
 from guardrails.validators.pii_redactor import PIIRedactor
+from guardrails.validators.token_budget import TokenBudget
 from guardrails.validators.toxicity import ToxicityDetector
 
-__all__ = ["PIIRedactor", "PromptInjectionDetector", "ToxicityDetector"]
+__all__ = ["PIIRedactor", "PromptInjectionDetector", "TokenBudget", "ToxicityDetector"]
