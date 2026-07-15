@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-guardrails-toolkit"
+version = "0.1.0"
+description = "Input/output guardrails framework for LLM applications"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+aws = ["boto3>=1.28"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0", "flake8>=6.0", "black>=23.0", "mypy>=1.0"]
+
+[tool.setuptools.packages.find]
+include = ["guardrails*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.black]
+line-length = 120
+target-version = ["py310"]
