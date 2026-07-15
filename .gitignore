@@ -12,6 +12,7 @@ build/
 .idea/
 *.swp
 *.swo
+.DS_Store
 
 # Coverage
 htmlcov/
