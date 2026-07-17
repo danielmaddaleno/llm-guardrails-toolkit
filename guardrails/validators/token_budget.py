@@ -13,6 +13,10 @@ class TokenBudget(BaseValidator):
     """
 
     def __init__(self, max_tokens: int = 4000, chars_per_token: float = 4.0):
+        if max_tokens < 0:
+            raise ValueError(f"max_tokens must be non-negative, got {max_tokens}")
+        if chars_per_token <= 0:
+            raise ValueError(f"chars_per_token must be positive, got {chars_per_token}")
         self.max_tokens = max_tokens
         self.chars_per_token = chars_per_token
 
