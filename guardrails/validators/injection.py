@@ -38,6 +38,10 @@ class PromptInjectionDetector(BaseValidator):
         self.patterns = self.DEFAULT_PATTERNS + (extra_patterns or [])
         self.flags = 0 if case_sensitive else re.IGNORECASE
         self.threshold = threshold
+        # Compile once at construction so we don't rebuild every pattern on
+        # each validate() call, which happens on the hot path for every
+        # request. Mirrors how ToxicityDetector handles its patterns.
+        self._compiled = [re.compile(p, self.flags) for p in self.patterns]
 
     def validate(self, text: str) -> str:
         """Check for prompt injection patterns.
@@ -56,8 +60,4 @@ class PromptInjectionDetector(BaseValidator):
 
     def detect(self, text: str) -> list[str]:
         """Return list of matched injection patterns."""
-        matches = []
-        for pattern in self.patterns:
-            if re.search(pattern, text, self.flags):
-                matches.append(pattern)
-        return matches
+        return [pattern.pattern for pattern in self._compiled if pattern.search(text)]
