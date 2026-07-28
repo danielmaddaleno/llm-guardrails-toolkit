@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from guardrails.pipeline import BaseValidator, GuardrailViolation
 
 
@@ -31,5 +33,10 @@ class TokenBudget(BaseValidator):
         return text
 
     def estimate_tokens(self, text: str) -> int:
-        """Estimate token count from character length."""
-        return int(len(text) / self.chars_per_token)
+        """Estimate token count from character length.
+
+        Rounds up so the estimate stays conservative: since this drives a
+        hard budget limit, truncating down could let text that is really
+        over budget slip through on a fractional boundary.
+        """
+        return math.ceil(len(text) / self.chars_per_token)
