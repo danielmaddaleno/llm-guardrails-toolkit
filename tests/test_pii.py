@@ -53,3 +53,13 @@ class TestPIIRedactor:
         types = {d["type"] for d in detected}
         assert "EMAIL" in types
         assert "SSN" in types
+
+    def test_detect_orders_by_position(self, redactor):
+        # The SSN appears before the email in the text, but EMAIL is scanned
+        # first, so without sorting the email would come back first. detect()
+        # should return findings in the order they appear in the text.
+        text = "SSN 111-22-3333, reach me at john@test.com"
+        detected = redactor.detect(text)
+        starts = [d["start"] for d in detected]
+        assert starts == sorted(starts)
+        assert [d["type"] for d in detected] == ["SSN", "EMAIL"]

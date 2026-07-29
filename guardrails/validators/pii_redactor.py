@@ -31,7 +31,13 @@ class PIIRedactor(BaseValidator):
         return masked
 
     def detect(self, text: str) -> list[dict]:
-        """Return list of PII findings without masking."""
+        """Return list of PII findings without masking.
+
+        Findings are sorted by their position in the text. Without this they
+        come out grouped by pattern type (all emails, then all phones, ...),
+        which does not match reading order and makes it awkward to build an
+        audit log or walk non-overlapping spans left to right.
+        """
         findings = []
         for label, pattern in self.patterns.items():
             for match in re.finditer(pattern, text):
@@ -43,4 +49,5 @@ class PIIRedactor(BaseValidator):
                         "end": match.end(),
                     }
                 )
+        findings.sort(key=lambda f: f["start"])
         return findings
