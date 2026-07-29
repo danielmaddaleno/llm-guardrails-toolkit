@@ -13,6 +13,7 @@ Every call to an LLM is two trust boundaries: what the user sends in, and what t
 
 - Prompt injection detection: regex-based matching against common jailbreak and instruction-override patterns.
 - PII redaction: masks emails, phone numbers, SSNs, and credit card numbers.
+- Secret detection: blocks text containing prefixed credentials (AWS keys, GitHub/Slack tokens, Google/OpenAI API keys, PEM private keys) so a model does not echo a leaked key back to the user.
 - Token budget control: rejects text that would exceed a configured token estimate, no tokenizer dependency required.
 - Toxicity screening: keyword-based flagging for hate speech, self-harm, and violence categories (swap in a real classifier for production).
 - Pluggable validators: anything implementing `BaseValidator.validate(text) -> str` can join a pipeline.
@@ -21,7 +22,7 @@ Every call to an LLM is two trust boundaries: what the user sends in, and what t
 ## Quick Start
 
 ```python
-from guardrails import GuardrailsPipeline, PIIRedactor, PromptInjectionDetector, TokenBudget
+from guardrails import GuardrailsPipeline, PIIRedactor, PromptInjectionDetector, SecretsDetector, TokenBudget
 
 pipeline = GuardrailsPipeline(
     input_guards=[
@@ -31,6 +32,7 @@ pipeline = GuardrailsPipeline(
     ],
     output_guards=[
         PIIRedactor(),
+        SecretsDetector(),
         TokenBudget(max_tokens=1000),
     ],
 )
@@ -93,6 +95,7 @@ Stage:   input
 │   │   ├── __init__.py
 │   │   ├── pii_redactor.py    # PII detection & masking
 │   │   ├── injection.py       # Prompt injection detection
+│   │   ├── secrets.py         # Credential / secret leak detection
 │   │   ├── token_budget.py    # Token limit enforcement
 │   │   └── toxicity.py        # Keyword-based toxicity screening
 │   └── integrations/
@@ -101,6 +104,7 @@ Stage:   input
 ├── tests/
 │   ├── test_pii.py
 │   ├── test_injection.py
+│   ├── test_secrets.py
 │   └── test_pipeline.py
 ├── examples/
 │   └── bedrock_example.py     # Runs offline with a stubbed Bedrock client
