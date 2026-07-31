@@ -63,3 +63,25 @@ class TestPIIRedactor:
         starts = [d["start"] for d in detected]
         assert starts == sorted(starts)
         assert [d["type"] for d in detected] == ["SSN", "EMAIL"]
+
+    def test_credit_card_failing_luhn_is_not_redacted(self, redactor):
+        # 4111-1111-1111-1111 is a valid Luhn card; flipping the last digit
+        # breaks the checksum, so this 16-digit string is not a real card and
+        # must survive untouched instead of being masked as [CREDIT_CARD].
+        text = "Reference number 4111-1111-1111-1112 for the order."
+        assert redactor.validate(text) == text
+        assert not any(d["type"] == "CREDIT_CARD" for d in redactor.detect(text))
+
+    def test_valid_luhn_card_is_still_detected(self, redactor):
+        detected = redactor.detect("pay with 4111 1111 1111 1111 today")
+        assert [d["type"] for d in detected] == ["CREDIT_CARD"]
+
+    def test_overlapping_matches_collapse_to_leftmost_longest(self):
+        # Two custom rules that both match the same digits: the longer span
+        # should win and the shorter overlapping ones should be dropped, so a
+        # value is never partly re-masked by a second rule.
+        redactor = PIIRedactor(patterns={"LONG": r"\d{6}", "SHORT": r"\d{3}"})
+        findings = redactor.detect("id 123456 end")
+        assert len(findings) == 1
+        assert findings[0]["type"] == "LONG"
+        assert redactor.validate("id 123456 end") == "id [LONG] end"
