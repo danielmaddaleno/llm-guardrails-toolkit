@@ -3,8 +3,30 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from guardrails.pipeline import BaseValidator, GuardrailViolation
+
+# Zero-width and other invisible formatting characters. An attacker can drop
+# these between letters ("ig<ZWSP>nore previous instructions") to slip a known
+# phrase past a literal regex while the text still reads normally to a human.
+# We strip them before matching. In order: zero-width space, zero-width
+# non-joiner, zero-width joiner, word joiner, BOM / zero-width no-break space,
+# soft hyphen.
+_INVISIBLE = dict.fromkeys(
+    (0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF, 0x00AD),
+    None,
+)
+
+
+def _normalize(text: str) -> str:
+    """Fold obfuscation tricks away before pattern matching.
+
+    Removes invisible characters and applies NFKC so compatibility forms such
+    as fullwidth letters ("ｉｇｎｏｒｅ") collapse to their ASCII equivalents. Used
+    only for detection; the original text is what the pipeline passes on.
+    """
+    return unicodedata.normalize("NFKC", text.translate(_INVISIBLE))
 
 
 class PromptInjectionDetector(BaseValidator):
@@ -59,5 +81,11 @@ class PromptInjectionDetector(BaseValidator):
         return text
 
     def detect(self, text: str) -> list[str]:
-        """Return list of matched injection patterns."""
-        return [pattern.pattern for pattern in self._compiled if pattern.search(text)]
+        """Return list of matched injection patterns.
+
+        Matching runs against a normalized copy of the text so common evasion
+        tricks (invisible characters, fullwidth look-alikes) do not hide an
+        otherwise obvious pattern.
+        """
+        normalized = _normalize(text)
+        return [pattern.pattern for pattern in self._compiled if pattern.search(normalized)]
