@@ -38,6 +38,11 @@ class SecretsDetector(BaseValidator):
         extra_patterns: dict[str, str] | None = None,
         threshold: int = 1,
     ):
+        # A threshold below 1 makes validate() block every input: detect() can
+        # return an empty list and ``len([]) >= 0`` is still true, so clean text
+        # would trip the guard. Reject it up front instead of failing silently.
+        if threshold < 1:
+            raise ValueError(f"threshold must be at least 1, got {threshold}")
         patterns = {**self.DEFAULT_PATTERNS, **(extra_patterns or {})}
         self.threshold = threshold
         self._compiled: dict[str, re.Pattern] = {name: re.compile(p) for name, p in patterns.items()}

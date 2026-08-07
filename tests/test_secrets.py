@@ -48,3 +48,11 @@ class TestSecretsDetector:
         detector = SecretsDetector(extra_patterns={"internal_token": r"\bTKN-[0-9]{6}\b"})
         found = detector.detect("use TKN-123456 to authenticate")
         assert "internal_token" in found
+
+    def test_rejects_non_positive_threshold(self):
+        # A threshold below 1 would make validate() block even clean text, since
+        # an empty detection list still satisfies len(found) >= 0.
+        with pytest.raises(ValueError):
+            SecretsDetector(threshold=0)
+        with pytest.raises(ValueError):
+            SecretsDetector(threshold=-1)
