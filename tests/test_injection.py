@@ -67,6 +67,14 @@ class TestPromptInjectionDetector:
         result = detector.validate(text)
         assert result == text
 
+    def test_threshold_below_one_is_rejected(self):
+        # A threshold of 0 would make validate() block clean text, since
+        # len([]) >= 0 is always true. The constructor should refuse it.
+        with pytest.raises(ValueError):
+            PromptInjectionDetector(threshold=0)
+        with pytest.raises(ValueError):
+            PromptInjectionDetector(threshold=-1)
+
     def test_zero_width_obfuscation_is_detected(self, detector):
         # A zero-width space hidden inside "ignore" keeps the phrase readable
         # to a human but would dodge a literal regex without normalization.

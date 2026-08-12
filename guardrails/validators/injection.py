@@ -57,6 +57,11 @@ class PromptInjectionDetector(BaseValidator):
         case_sensitive: bool = False,
         threshold: int = 1,
     ):
+        # A threshold below 1 makes validate() block every input: detect() can
+        # return an empty list and ``len([]) >= 0`` is still true, so clean text
+        # would trip the guard. Reject it up front instead of failing silently.
+        if threshold < 1:
+            raise ValueError(f"threshold must be at least 1, got {threshold}")
         self.patterns = self.DEFAULT_PATTERNS + (extra_patterns or [])
         self.flags = 0 if case_sensitive else re.IGNORECASE
         self.threshold = threshold
