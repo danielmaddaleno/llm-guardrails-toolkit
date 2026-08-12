@@ -46,6 +46,11 @@ class ToxicityDetector(BaseValidator):
         categories: dict[str, list[str]] | None = None,
         threshold: int = 1,
     ):
+        # A threshold below 1 makes validate() block every input: detect() can
+        # return an empty list and ``len([]) >= 0`` is still true, so clean text
+        # would trip the guard. Reject it up front instead of failing silently.
+        if threshold < 1:
+            raise ValueError(f"threshold must be at least 1, got {threshold}")
         self.categories = categories or _DEFAULT_CATEGORIES
         self.threshold = threshold
         self._compiled: dict[str, list[re.Pattern]] = {

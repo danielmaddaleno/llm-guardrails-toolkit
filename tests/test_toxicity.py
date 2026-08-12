@@ -43,6 +43,14 @@ class TestToxicityDetector:
         with pytest.raises(GuardrailViolation):
             detector.validate(text)
 
+    def test_threshold_below_one_is_rejected(self):
+        # A threshold of 0 would make validate() block clean text, since
+        # len([]) >= 0 is always true. The constructor should refuse it.
+        with pytest.raises(ValueError):
+            ToxicityDetector(threshold=0)
+        with pytest.raises(ValueError):
+            ToxicityDetector(threshold=-1)
+
     def test_custom_categories_override_defaults(self):
         detector = ToxicityDetector(categories={"spam": [r"\bbuy now\b"]})
         with pytest.raises(GuardrailViolation):
