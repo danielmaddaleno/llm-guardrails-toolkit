@@ -2,7 +2,7 @@
 
 import pytest
 
-from guardrails.pipeline import GuardrailsPipeline, GuardrailViolation
+from guardrails.pipeline import BaseValidator, GuardrailsPipeline, GuardrailViolation
 from guardrails.validators.injection import PromptInjectionDetector
 from guardrails.validators.pii_redactor import PIIRedactor
 from guardrails.validators.token_budget import TokenBudget
@@ -65,3 +65,18 @@ class TestGuardrailsPipeline:
         assert result.is_safe
         assert "[EMAIL]" in result.processed_text
         assert result.original_text == "Email: x@y.com"
+
+    def test_warn_violation_is_recorded_but_keeps_result_safe(self):
+        # is_safe treats only block-severity violations as unsafe. A warn-level
+        # guard should still surface its violation for auditing while leaving
+        # is_safe True, so callers can log advisories without failing the run.
+        class WarnOnlyGuard(BaseValidator):
+            def validate(self, text: str) -> str:
+                raise GuardrailViolation(self.name, "advisory only", severity="warn")
+
+        pipe = GuardrailsPipeline(input_guards=[WarnOnlyGuard()])
+        result = pipe.validate_input_full("anything")
+        assert result.is_safe
+        assert len(result.violations) == 1
+        assert result.violations[0].severity == "warn"
+        assert "WarnOnlyGuard" in result.validators_applied
