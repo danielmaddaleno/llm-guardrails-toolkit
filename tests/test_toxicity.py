@@ -57,3 +57,16 @@ class TestToxicityDetector:
             detector.validate("buy now while stocks last")
         # A default-category term is no longer flagged once categories are replaced.
         assert detector.detect("that was racist") == []
+
+    def test_invisible_characters_do_not_hide_a_keyword(self, detector):
+        # A zero-width space wedged inside the word keeps it readable to a human
+        # but would slip past a literal regex. Detection normalizes first, so the
+        # slur is still flagged.
+        assert detector.detect("that was raci​st") == ["hate_speech"]
+        with pytest.raises(GuardrailViolation):
+            detector.validate("that was raci​st")
+
+    def test_fullwidth_lookalikes_do_not_hide_a_keyword(self, detector):
+        # Fullwidth Latin letters render like ASCII but are distinct code points;
+        # NFKC folds them back before matching so the category still trips.
+        assert detector.detect("that was ｒａｃｉｓｔ") == ["hate_speech"]
