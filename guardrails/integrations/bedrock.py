@@ -10,6 +10,10 @@ from guardrails.pipeline import GuardrailsPipeline, ValidationResult
 
 logger = logging.getLogger(__name__)
 
+# Request-body keys invoke() builds itself and will not take from a caller.
+# max_tokens and temperature are named arguments, so they cannot reach **kwargs.
+RESERVED_BODY_KEYS = frozenset({"anthropic_version", "messages"})
+
 
 class BedrockGuardedClient:
     """Thin wrapper around ``boto3`` Bedrock runtime that applies
@@ -66,7 +70,17 @@ class BedrockGuardedClient:
         -------
         dict with keys ``"text"``, ``"blocked"``, ``"stage"``, ``"input_validation"``,
         ``"output_validation"``, and ``"usage"`` (raw Bedrock usage metadata).
+
+        Raises:
+            ValueError: If *kwargs* carries a key this method owns.
         """
+        clashing = RESERVED_BODY_KEYS.intersection(kwargs)
+        if clashing:
+            raise ValueError(
+                f"{sorted(clashing)} cannot be passed to invoke(): the request body is built from "
+                "the guarded prompt, and overriding it would send unvalidated text to the model."
+            )
+
         # --- Input guardrails ---
         input_result: ValidationResult = self.pipeline.validate_input_full(prompt)
         if not input_result.is_safe:
@@ -82,13 +96,14 @@ class BedrockGuardedClient:
         safe_prompt = input_result.processed_text
 
         # --- Call Bedrock ---
+        # kwargs go first so no caller key can overwrite the guarded prompt.
         body = json.dumps(
             {
+                **kwargs,
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": max_tokens,
                 "temperature": temperature,
                 "messages": [{"role": "user", "content": safe_prompt}],
-                **kwargs,
             }
         )
 
