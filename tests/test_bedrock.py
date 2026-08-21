@@ -7,6 +7,10 @@ that a blocked input never reaches the model.
 """
 
 import json
+import sys
+from unittest import mock
+
+import pytest
 
 from guardrails.integrations.bedrock import BedrockGuardedClient
 from guardrails.pipeline import GuardrailsPipeline
@@ -90,3 +94,21 @@ class TestBedrockGuardedClient:
         client.invoke(prompt="hello", max_tokens=256, temperature=0.1)
         assert stub.last_body["max_tokens"] == 256
         assert stub.last_body["temperature"] == 0.1
+
+
+class TestBedrockWithoutBoto3:
+    """The injected-session path must not need boto3 installed."""
+
+    def test_injected_session_does_not_import_boto3(self):
+        stub = _StubBedrockRuntimeClient()
+        pipeline = GuardrailsPipeline()
+        # Setting the entry to None makes ``import boto3`` raise ImportError,
+        # which is what a machine without the aws extra installed sees.
+        with mock.patch.dict(sys.modules, {"boto3": None}):
+            client = BedrockGuardedClient(pipeline=pipeline, boto3_session=_StubSession(stub))
+        assert client.invoke(prompt="hello")["blocked"] is False
+
+    def test_missing_boto3_still_reported_when_no_session_given(self):
+        with mock.patch.dict(sys.modules, {"boto3": None}):
+            with pytest.raises(ImportError, match="boto3 is required"):
+                BedrockGuardedClient(pipeline=GuardrailsPipeline())

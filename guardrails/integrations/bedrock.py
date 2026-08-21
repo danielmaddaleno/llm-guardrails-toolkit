@@ -37,14 +37,19 @@ class BedrockGuardedClient:
         self.pipeline = pipeline
         self.model_id = model_id
 
-        try:
-            import boto3  # type: ignore[import-untyped]
-        except ImportError as exc:
-            raise ImportError(
-                "boto3 is required for BedrockGuardedClient. " "Install it with: pip install boto3"
-            ) from exc
+        session = boto3_session
+        if session is None:
+            # Only needed when we have to build the session ourselves. A caller
+            # that injects its own session (or a stub) does not need boto3 at all.
+            try:
+                import boto3  # type: ignore[import-untyped]
+            except ImportError as exc:
+                raise ImportError(
+                    "boto3 is required for BedrockGuardedClient. " "Install it with: pip install boto3"
+                ) from exc
 
-        session = boto3_session or boto3.Session(region_name=region_name)
+            session = boto3.Session(region_name=region_name)
+
         self.client = session.client("bedrock-runtime")
 
     # ------------------------------------------------------------------
