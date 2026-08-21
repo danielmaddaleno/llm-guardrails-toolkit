@@ -1,5 +1,7 @@
 """Unit tests for PII redaction validator."""
 
+import time
+
 import pytest
 
 from guardrails.validators.pii_redactor import PIIRedactor
@@ -85,3 +87,28 @@ class TestPIIRedactor:
         assert len(findings) == 1
         assert findings[0]["type"] == "LONG"
         assert redactor.validate("id 123456 end") == "id [LONG] end"
+
+
+class TestEmailScanCost:
+    """The email rule must stay linear on hostile input."""
+
+    def test_long_run_without_an_at_sign_is_scanned_quickly(self, redactor):
+        # "a.a.a..." is all local-part characters and contains no "@", the shape
+        # that used to make the scan quadratic. 200 KB took about 48 seconds
+        # before the length bounds went in.
+        payload = "a." * 100_000
+        start = time.perf_counter()
+        assert redactor.detect(payload) == []
+        assert time.perf_counter() - start < 1.0
+
+    def test_long_domain_run_is_scanned_quickly(self, redactor):
+        payload = "x@" + "b." * 100_000
+        start = time.perf_counter()
+        redactor.detect(payload)
+        assert time.perf_counter() - start < 1.0
+
+    def test_bounds_do_not_change_what_counts_as_an_email(self, redactor):
+        for address in ("a@b.co", "first+tag@sub.domain.co.uk", "user_name@mail-server.io"):
+            assert redactor.validate(f"write to {address} today") == "write to [EMAIL] today"
+        for not_an_email in ("a@b", "@example.com", "user@localhost"):
+            assert redactor.validate(not_an_email) == not_an_email
