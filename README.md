@@ -54,6 +54,8 @@ result.violations       # [GuardrailViolation(...)]
 result.processed_text   # text after every guard ran, PII already masked
 ```
 
+Every guard walks the whole string, so the pipeline caps what it will scan: text longer than `max_chars` (100,000 by default) is blocked before any validator runs. Pass `GuardrailsPipeline(..., max_chars=None)` to turn the cap off.
+
 ## Bedrock integration
 
 `BedrockGuardedClient` wraps a `boto3` Bedrock runtime client and applies a `GuardrailsPipeline` on the way in and out:

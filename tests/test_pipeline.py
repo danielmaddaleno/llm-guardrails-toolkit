@@ -80,3 +80,51 @@ class TestGuardrailsPipeline:
         assert len(result.violations) == 1
         assert result.violations[0].severity == "warn"
         assert "WarnOnlyGuard" in result.validators_applied
+
+
+class _RecordingValidator(BaseValidator):
+    """Counts how many times the pipeline handed it text."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def validate(self, text: str) -> str:
+        self.calls += 1
+        return text
+
+
+class TestPipelineSizeCap:
+    def test_oversized_input_is_blocked_before_any_validator_runs(self):
+        recorder = _RecordingValidator()
+        pipe = GuardrailsPipeline(input_guards=[recorder], max_chars=100)
+        with pytest.raises(GuardrailViolation, match="exceeds the limit"):
+            pipe.validate_input("a" * 101)
+        assert recorder.calls == 0
+
+    def test_oversized_output_is_blocked_too(self):
+        pipe = GuardrailsPipeline(output_guards=[PIIRedactor()], max_chars=100)
+        with pytest.raises(GuardrailViolation):
+            pipe.validate_output("a" * 101)
+
+    def test_collect_all_mode_reports_the_cap_without_running_guards(self):
+        recorder = _RecordingValidator()
+        pipe = GuardrailsPipeline(input_guards=[recorder], max_chars=100)
+        result = pipe.validate_input_full("a" * 101)
+        assert result.is_safe is False
+        assert result.validators_applied == []
+        assert result.processed_text == result.original_text
+        assert recorder.calls == 0
+
+    def test_text_at_the_limit_still_passes(self):
+        recorder = _RecordingValidator()
+        pipe = GuardrailsPipeline(input_guards=[recorder], max_chars=100)
+        assert pipe.validate_input("a" * 100) == "a" * 100
+        assert recorder.calls == 1
+
+    def test_cap_can_be_disabled(self):
+        pipe = GuardrailsPipeline(input_guards=[PIIRedactor()], max_chars=None)
+        assert pipe.validate_input("a" * 500_000).startswith("aaa")
+
+    def test_non_positive_cap_is_rejected(self):
+        with pytest.raises(ValueError, match="max_chars"):
+            GuardrailsPipeline(max_chars=0)
