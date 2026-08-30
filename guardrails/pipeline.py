@@ -116,7 +116,13 @@ class GuardrailsPipeline:
             try:
                 current = validator.validate(current)
                 logger.debug("[%s] %s passed", stage, validator.name)
-            except GuardrailViolation:
+            except GuardrailViolation as violation:
+                # Only block-severity stops the run. A warn is an advisory, and
+                # aborting on one would make it a block by another name, which
+                # is not what is_safe() reports for the same violation.
+                if violation.severity != "block":
+                    logger.info("[%s] %s advisory: %s", stage, validator.name, violation.message)
+                    continue
                 logger.warning("[%s] %s triggered", stage, validator.name)
                 raise
         return current

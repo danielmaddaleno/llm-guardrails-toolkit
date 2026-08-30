@@ -66,6 +66,16 @@ class TestGuardrailsPipeline:
         assert "[EMAIL]" in result.processed_text
         assert result.original_text == "Email: x@y.com"
 
+    def test_warn_violation_does_not_stop_short_circuit_mode(self):
+        # validate_input() raises on block severity only. A warn is an advisory,
+        # and is_safe() already treats it as safe, so the two modes should agree.
+        class WarnOnlyGuard(BaseValidator):
+            def validate(self, text: str) -> str:
+                raise GuardrailViolation(self.name, "advisory only", severity="warn")
+
+        pipe = GuardrailsPipeline(input_guards=[WarnOnlyGuard(), PIIRedactor()])
+        assert pipe.validate_input("mail a@b.com") == "mail [EMAIL]"
+
     def test_warn_violation_is_recorded_but_keeps_result_safe(self):
         # is_safe treats only block-severity violations as unsafe. A warn-level
         # guard should still surface its violation for auditing while leaving
