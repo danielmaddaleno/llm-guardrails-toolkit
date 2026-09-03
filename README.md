@@ -11,7 +11,7 @@ Every call to an LLM is two trust boundaries: what the user sends in, and what t
 
 ## Features
 
-- Prompt injection detection: regex-based matching against common jailbreak and instruction-override patterns.
+- Prompt injection detection: regex matching against known instruction-override phrasing, split into a tier that blocks and a tier that only warns.
 - PII redaction: masks emails, phone numbers, SSNs, and credit card numbers.
 - Secret detection: blocks text containing prefixed credentials (AWS keys, GitHub/Slack tokens, Google/OpenAI API keys, PEM private keys) so a model does not echo a leaked key back to the user.
 - Token budget control: rejects text that would exceed a configured token estimate, no tokenizer dependency required.
@@ -141,6 +141,8 @@ make format               # black + isort
 ## Limitations
 
 The injection and toxicity detectors are regex heuristics, not trained classifiers. They catch known phrasing patterns and will miss paraphrased or obfuscated attacks. For production use, treat them as a cheap first pass and pair them with a model-based classifier (Bedrock Guardrails, OpenAI moderation, Perspective API) for anything security-sensitive.
+
+They also fire on text nobody meant as an attack. `PromptInjectionDetector` keeps two pattern tiers for that reason: `BLOCKING_PATTERNS` raise a block-severity violation, and `ADVISORY_PATTERNS` (phrases like `act as if you were`, `### Instructions`, `jailbreak`, which turn up in ordinary prompts) raise a warn-severity violation, which is recorded in `ValidationResult.violations` while `is_safe` stays True. Against the corpora in `tests/test_injection.py`, the blocking tier fires on 0 of 30 benign prompts and 10 of 10 attack prompts, and the advisory tier fires on 9 of the 30 benign ones. Sixty hand-written prompts are a smoke test, not a benchmark, so measure against your own traffic before trusting the split.
 
 ## Roadmap
 
