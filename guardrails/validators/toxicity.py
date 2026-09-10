@@ -28,19 +28,19 @@ def _normalize(text: str) -> str:
     return unicodedata.normalize("NFKC", text.translate(_INVISIBLE))
 
 
-# Lightweight keyword categories. Production systems should plug in
-# a classifier model (e.g. OpenAI moderation, Perspective API).
+# Lightweight keyword categories. A pattern needs a request for the content or a
+# statement of intent. Matching the topic word on its own blocks crisis lines
+# and news copy, which costs more than the extra misses. Production systems
+# should plug in a classifier model (e.g. OpenAI moderation, Perspective API).
 _DEFAULT_CATEGORIES: dict[str, list[str]] = {
     "hate_speech": [
-        r"\bracis[tm]\b",
-        r"\bsexis[tm]\b",
-        r"\bhomophobi[ac]\b",
-        r"\bxenophobi[ac]\b",
-        r"\bwhite\s*supremac",
+        r"\b(?:racist|sexist|homophobic|xenophobic|white\s*supremacist)"
+        r"\s+(?:joke|slur|insult|rant|meme|propaganda)s?\b",
     ],
     "self_harm": [
-        r"\bsuicid",
-        r"\bself[- ]?harm",
+        r"\b(?:kill|hurt)\s+(?:myself|yourself)\b",
+        r"\b(?:how|ways?|methods?|instructions?)\s+to\s+(?:commit\s+suicide|self[- ]?harm|end\s+my\s+life)\b",
+        r"\b(?:want|going|plan(?:ning)?)\s+to\s+(?:commit\s+suicide|self[- ]?harm|end\s+my\s+life)\b",
     ],
     "violence": [
         r"\bkill\s+(him|her|them|you)",
