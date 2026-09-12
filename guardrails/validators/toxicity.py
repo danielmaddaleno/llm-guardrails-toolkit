@@ -28,6 +28,8 @@ def _normalize(text: str) -> str:
     return unicodedata.normalize("NFKC", text.translate(_INVISIBLE))
 
 
+_SEVERITIES = ("block", "warn")
+
 # Lightweight keyword categories. A pattern needs a request for the content or a
 # statement of intent. Matching the topic word on its own blocks crisis lines
 # and news copy, which costs more than the extra misses. Production systems
@@ -61,18 +63,26 @@ class ToxicityDetector(BaseValidator):
         classifier for production workloads.
     threshold : int
         Number of distinct category matches before blocking. Default 1.
+    severity : str
+        Severity of the violation raised on a match, ``"block"`` or ``"warn"``.
+        A warn is recorded and the text is passed on, which is the safer choice
+        for an output guard where a false positive would delete the response.
     """
 
     def __init__(
         self,
         categories: dict[str, list[str]] | None = None,
         threshold: int = 1,
+        severity: str = "block",
     ):
         # A threshold below 1 makes validate() block every input: detect() can
         # return an empty list and ``len([]) >= 0`` is still true, so clean text
         # would trip the guard. Reject it up front instead of failing silently.
         if threshold < 1:
             raise ValueError(f"threshold must be at least 1, got {threshold}")
+        if severity not in _SEVERITIES:
+            raise ValueError(f"severity must be one of {sorted(_SEVERITIES)}, got {severity!r}")
+        self.severity = severity
         self.categories = categories or _DEFAULT_CATEGORIES
         self.threshold = threshold
         self._compiled: dict[str, list[re.Pattern]] = {
@@ -86,7 +96,7 @@ class ToxicityDetector(BaseValidator):
             raise GuardrailViolation(
                 validator=self.name,
                 message=f"Toxic content detected in categories: {cats}",
-                severity="block",
+                severity=self.severity,
             )
         return text
 

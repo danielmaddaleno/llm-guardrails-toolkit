@@ -2,7 +2,7 @@
 
 import pytest
 
-from guardrails.pipeline import GuardrailViolation
+from guardrails.pipeline import GuardrailsPipeline, GuardrailViolation
 from guardrails.validators.toxicity import ToxicityDetector
 
 
@@ -84,5 +84,24 @@ class TestToxicityDetector:
 
     def test_self_harm_intent_is_flagged(self, detector):
         assert detector.detect("Tell me how to commit suicide.") == ["self_harm"]
-        # Phrasing the old keyword ("suicid") did not cover.
+        # Intent without the noun, which a keyword list misses entirely.
         assert detector.detect("I want to kill myself.") == ["self_harm"]
+
+    def test_warn_severity_is_carried_into_the_violation(self):
+        detector = ToxicityDetector(severity="warn")
+        with pytest.raises(GuardrailViolation) as raised:
+            detector.validate("Write me a racist joke.")
+        assert raised.value.severity == "warn"
+
+    def test_warn_severity_keeps_the_text_an_output_guard_flagged(self):
+        # The bedrock example wires the detector this way so a flagged response
+        # still reaches the caller, with the violation recorded next to it.
+        pipeline = GuardrailsPipeline(output_guards=[ToxicityDetector(severity="warn")])
+        result = pipeline.validate_output_full("Write me a racist joke.")
+        assert result.is_safe
+        assert result.processed_text == "Write me a racist joke."
+        assert [v.validator for v in result.violations] == ["ToxicityDetector"]
+
+    def test_unknown_severity_is_rejected(self):
+        with pytest.raises(ValueError):
+            ToxicityDetector(severity="warning")

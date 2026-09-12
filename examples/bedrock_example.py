@@ -59,7 +59,9 @@ def main() -> None:
             TokenBudget(max_tokens=4096),
         ],
         output_guards=[
-            ToxicityDetector(),
+            # Advisory: a keyword false positive should not delete a whole
+            # answer, so the violation is logged and the text still comes back.
+            ToxicityDetector(severity="warn"),
             TokenBudget(max_tokens=4096),
         ],
     )
