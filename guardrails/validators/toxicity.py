@@ -3,30 +3,9 @@
 from __future__ import annotations
 
 import re
-import unicodedata
 
+from guardrails._text import normalize_for_matching
 from guardrails.pipeline import BaseValidator, GuardrailViolation
-
-# Invisible formatting characters an attacker can sprinkle inside a banned word
-# ("raci<ZWSP>st") so a literal keyword regex misses it while a human still reads
-# the slur normally. Same set the injection detector strips. In order: zero-width
-# space, zero-width non-joiner, zero-width joiner, word joiner, BOM / zero-width
-# no-break space, soft hyphen.
-_INVISIBLE = dict.fromkeys(
-    (0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF, 0x00AD),
-    None,
-)
-
-
-def _normalize(text: str) -> str:
-    """Fold obfuscation tricks away before keyword matching.
-
-    Removes invisible characters and applies NFKC so compatibility forms such
-    as fullwidth letters ("ｒａｃｉｓｔ") collapse to their ASCII equivalents. Used
-    only for detection; the original text is what the pipeline passes on.
-    """
-    return unicodedata.normalize("NFKC", text.translate(_INVISIBLE))
-
 
 _SEVERITIES = ("block", "warn")
 
@@ -107,7 +86,7 @@ class ToxicityDetector(BaseValidator):
         tricks the injection detector already handles (invisible characters,
         fullwidth look-alikes) cannot slip a banned keyword past the filter.
         """
-        normalized = _normalize(text)
+        normalized = normalize_for_matching(text)
         hits: list[str] = []
         for cat, patterns in self._compiled.items():
             if any(p.search(normalized) for p in patterns):

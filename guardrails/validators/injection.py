@@ -3,30 +3,9 @@
 from __future__ import annotations
 
 import re
-import unicodedata
 
+from guardrails._text import normalize_for_matching
 from guardrails.pipeline import BaseValidator, GuardrailViolation
-
-# Zero-width and other invisible formatting characters. An attacker can drop
-# these between letters ("ig<ZWSP>nore previous instructions") to slip a known
-# phrase past a literal regex while the text still reads normally to a human.
-# We strip them before matching. In order: zero-width space, zero-width
-# non-joiner, zero-width joiner, word joiner, BOM / zero-width no-break space,
-# soft hyphen.
-_INVISIBLE = dict.fromkeys(
-    (0x200B, 0x200C, 0x200D, 0x2060, 0xFEFF, 0x00AD),
-    None,
-)
-
-
-def _normalize(text: str) -> str:
-    """Fold obfuscation tricks away before pattern matching.
-
-    Removes invisible characters and applies NFKC so compatibility forms such
-    as fullwidth letters ("ｉｇｎｏｒｅ") collapse to their ASCII equivalents. Used
-    only for detection; the original text is what the pipeline passes on.
-    """
-    return unicodedata.normalize("NFKC", text.translate(_INVISIBLE))
 
 
 class PromptInjectionDetector(BaseValidator):
@@ -97,7 +76,7 @@ class PromptInjectionDetector(BaseValidator):
                 blocking patterns match, or severity ``"warn"`` when only
                 advisory patterns do.
         """
-        normalized = _normalize(text)
+        normalized = normalize_for_matching(text)
         blocking = self._matching(self._compiled, normalized)
         if len(blocking) >= self.threshold:
             raise GuardrailViolation(
@@ -121,11 +100,11 @@ class PromptInjectionDetector(BaseValidator):
 
     def detect_blocking(self, text: str) -> list[str]:
         """Return the matched patterns that are worth blocking on."""
-        return self._matching(self._compiled, _normalize(text))
+        return self._matching(self._compiled, normalize_for_matching(text))
 
     def detect_advisory(self, text: str) -> list[str]:
         """Return the matched patterns that only warrant a warning."""
-        return self._matching(self._compiled_advisory, _normalize(text))
+        return self._matching(self._compiled_advisory, normalize_for_matching(text))
 
     @staticmethod
     def _matching(compiled: list[re.Pattern], normalized: str) -> list[str]:
