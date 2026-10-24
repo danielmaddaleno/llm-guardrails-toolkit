@@ -37,6 +37,28 @@ class TestPIIRedactor:
         assert "4111-1111-1111-1111" not in result
         assert "[CREDIT_CARD]" in result
 
+    def test_redacts_international_phone_without_leaving_the_plus(self, redactor):
+        # The "+" of a "+1" country code is a non-word character, so a leading
+        # \b anchored the match after it and the "+" survived as "+[PHONE]".
+        # The whole number, prefix included, must be masked.
+        for text in ("Call +1 555-123-4567 now", "+1 (555) 123-4567", "+15551234567"):
+            result = redactor.validate(text)
+            assert "[PHONE]" in result
+            assert "+" not in result
+            assert "4567" not in result
+
+    def test_redacts_phone_with_leading_paren(self, redactor):
+        # Same cause as the "+" case: the opening "(" sat before the old \b and
+        # was left behind as "([PHONE]".
+        result = redactor.validate("reach me at (555) 123-4567")
+        assert result == "reach me at [PHONE]"
+
+    def test_plain_phone_formats_are_unchanged_by_the_anchor(self, redactor):
+        for text in ("555-123-4567", "call 555.123.4567 ok", "1 555 123 4567"):
+            assert "[PHONE]" in redactor.validate(text)
+        # A digit run too long to be a phone still must not partial-match.
+        assert redactor.validate("order 12345551234567 shipped") == "order 12345551234567 shipped"
+
     def test_no_pii_passthrough(self, redactor):
         text = "This is a perfectly safe sentence."
         result = redactor.validate(text)

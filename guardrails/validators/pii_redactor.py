@@ -36,9 +36,13 @@ class PIIRedactor(BaseValidator):
     # EMAIL carries explicit length bounds (64 and 253, the RFC 5321 limits).
     # Unbounded, a long run of local-part characters with no "@" after it
     # backtracks from every start position and scanning turns quadratic.
+    # PHONE anchors with a lookbehind rather than a leading \b. A number can
+    # open with "+" or "(", both non-word characters, so a leading \b lands
+    # after them and the optional "+1" or "(" fell outside the match: a real
+    # phone was redacted to "+[PHONE]" or "([PHONE]", leaking the prefix.
     PATTERNS = {
         "EMAIL": r"\b[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}\b",
-        "PHONE": r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",
+        "PHONE": r"(?<!\w)(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",
         "SSN": r"\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b",
         "CREDIT_CARD": r"\b(?:\d{4}[-.\s]?){3}\d{4}\b",
         "NAME": None,  # Handled separately with NER if available
