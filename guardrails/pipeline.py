@@ -27,6 +27,17 @@ class BaseValidator(ABC):
         """
         ...
 
+    async def validate_async(self, text: str) -> str:
+        """Async entry point used by the pipeline's async run.
+
+        Defaults to the synchronous :meth:`validate`, so every existing guard
+        already works in an async pipeline. A guard that reaches an external
+        service (a model-based classifier, a moderation API) overrides this
+        with a coroutine, and the pipeline then awaits it instead of blocking
+        the event loop while the call is in flight.
+        """
+        return self.validate(text)
+
     @property
     def name(self) -> str:
         return self.__class__.__name__
@@ -64,6 +75,10 @@ class GuardrailsPipeline:
     pays for it in CPU before any guard can object. The cap is checked once, up
     front, and oversized text is blocked without running a single validator.
     Pass ``max_chars=None`` to turn it off.
+
+    Each method has an ``_async`` twin (``validate_input_async`` and friends)
+    that awaits every guard. Use it from async code when a guard reaches an
+    external service, so the call yields the event loop rather than blocking it.
     """
 
     def __init__(
@@ -94,6 +109,22 @@ class GuardrailsPipeline:
         """Run output guardrails and return detailed result."""
         return self._run_pipeline_full(text, self.output_guards, "output")
 
+    async def validate_input_async(self, text: str) -> str:
+        """Await all input guardrails and return safe text."""
+        return await self._run_pipeline_async(text, self.input_guards, "input")
+
+    async def validate_output_async(self, text: str) -> str:
+        """Await all output guardrails and return safe text."""
+        return await self._run_pipeline_async(text, self.output_guards, "output")
+
+    async def validate_input_full_async(self, text: str) -> ValidationResult:
+        """Await input guardrails and return detailed result."""
+        return await self._run_pipeline_full_async(text, self.input_guards, "input")
+
+    async def validate_output_full_async(self, text: str) -> ValidationResult:
+        """Await output guardrails and return detailed result."""
+        return await self._run_pipeline_full_async(text, self.output_guards, "output")
+
     def _oversize_violation(self, text: str) -> GuardrailViolation | None:
         """Return a violation if *text* is past the pipeline's size cap."""
         if self.max_chars is None or len(text) <= self.max_chars:
@@ -103,6 +134,19 @@ class GuardrailsPipeline:
             message=f"Text of {len(text)} characters exceeds the limit of {self.max_chars}",
             severity="block",
         )
+
+    def _handle_violation(self, violation: GuardrailViolation, stage: str, validator_name: str) -> None:
+        """Short-circuit policy for the sync and async run loops.
+
+        A warn is an advisory: log it and let the run continue. A block aborts
+        the run, so log it and re-raise. Both run loops defer to this so the
+        sync and async paths cannot drift on which severities stop a pipeline.
+        """
+        if violation.severity != "block":
+            logger.info("[%s] %s advisory: %s", stage, validator_name, violation.message)
+            return
+        logger.warning("[%s] %s triggered", stage, validator_name)
+        raise violation
 
     def _run_pipeline(self, text: str, validators: list[BaseValidator], stage: str) -> str:
         """Run validators sequentially, return processed text or raise."""
@@ -117,14 +161,30 @@ class GuardrailsPipeline:
                 current = validator.validate(current)
                 logger.debug("[%s] %s passed", stage, validator.name)
             except GuardrailViolation as violation:
-                # Only block-severity stops the run. A warn is an advisory, and
-                # aborting on one would make it a block by another name, which
-                # is not what is_safe() reports for the same violation.
-                if violation.severity != "block":
-                    logger.info("[%s] %s advisory: %s", stage, validator.name, violation.message)
-                    continue
-                logger.warning("[%s] %s triggered", stage, validator.name)
-                raise
+                self._handle_violation(violation, stage, validator.name)
+        return current
+
+    async def _run_pipeline_async(self, text: str, validators: list[BaseValidator], stage: str) -> str:
+        """Await each validator in turn, return processed text or raise.
+
+        Guards run one after another, not concurrently: each guard's output is
+        the next guard's input (a redactor masks text the following guard then
+        scans), so there is no order to parallelize. Awaiting them is still
+        worthwhile because an ``await`` inside a guard yields the event loop
+        instead of blocking it on an external call.
+        """
+        oversize = self._oversize_violation(text)
+        if oversize is not None:
+            logger.warning("[%s] text of %d characters rejected before validation", stage, len(text))
+            raise oversize
+
+        current = text
+        for validator in validators:
+            try:
+                current = await validator.validate_async(current)
+                logger.debug("[%s] %s passed", stage, validator.name)
+            except GuardrailViolation as violation:
+                self._handle_violation(violation, stage, validator.name)
         return current
 
     def _run_pipeline_full(self, text: str, validators: list[BaseValidator], stage: str) -> ValidationResult:
@@ -140,6 +200,28 @@ class GuardrailsPipeline:
         for validator in validators:
             try:
                 result.processed_text = validator.validate(result.processed_text)
+                result.validators_applied.append(validator.name)
+            except GuardrailViolation as e:
+                result.violations.append(e)
+                result.validators_applied.append(validator.name)
+
+        return result
+
+    async def _run_pipeline_full_async(
+        self, text: str, validators: list[BaseValidator], stage: str
+    ) -> ValidationResult:
+        """Await all validators and collect results without short-circuiting."""
+        result = ValidationResult(original_text=text, processed_text=text)
+
+        oversize = self._oversize_violation(text)
+        if oversize is not None:
+            logger.warning("[%s] text of %d characters rejected before validation", stage, len(text))
+            result.violations.append(oversize)
+            return result
+
+        for validator in validators:
+            try:
+                result.processed_text = await validator.validate_async(result.processed_text)
                 result.validators_applied.append(validator.name)
             except GuardrailViolation as e:
                 result.violations.append(e)

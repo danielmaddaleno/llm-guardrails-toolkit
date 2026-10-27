@@ -56,6 +56,40 @@ result.processed_text   # text after every guard ran, PII already masked
 
 Every guard walks the whole string, so the pipeline caps what it will scan: text longer than `max_chars` (100,000 by default) is blocked before any validator runs. Pass `GuardrailsPipeline(..., max_chars=None)` to turn the cap off.
 
+## Async execution
+
+Every pipeline method has an `_async` twin for use from async code:
+`validate_input_async`, `validate_output_async`, and the two `_full_async`
+variants. They run the same guards with the same ordering and short-circuit
+rules, so switching one for the other changes nothing about the result.
+
+```python
+safe_prompt = await pipeline.validate_input_async("Summarize this record for a@b.com")
+```
+
+The point is a guard that reaches an external service. The built-in detectors
+are regex, so `await`ing them buys nothing, but the README recommends pairing
+them with a model-based classifier, and that call is network I/O. A guard
+overrides `validate_async` to make it, and the async pipeline awaits it instead
+of blocking the event loop:
+
+```python
+class ModerationAPIGuard(BaseValidator):
+    def validate(self, text):            # sync callers still work
+        return asyncio.run(self.validate_async(text))
+
+    async def validate_async(self, text):
+        verdict = await moderation_client.score(text)   # yields the loop
+        if verdict.blocked:
+            raise GuardrailViolation(self.name, "flagged by classifier")
+        return text
+```
+
+Guards run in sequence, not in parallel, because each one's output is the next
+one's input (a redactor masks text the following guard then scans). A guard
+that implements only `validate` needs no change: the default `validate_async`
+calls it, so existing validators drop straight into an async pipeline.
+
 ## Bedrock integration
 
 `BedrockGuardedClient` wraps a `boto3` Bedrock runtime client and applies a `GuardrailsPipeline` on the way in and out:
@@ -150,7 +184,6 @@ They also fire on text nobody meant as an attack. `PromptInjectionDetector` keep
 
 - Benchmark the regex detectors against a public prompt injection dataset
 - Add a model-based toxicity classifier as an optional validator
-- Async pipeline execution for guards that call external services
 
 ## License
 

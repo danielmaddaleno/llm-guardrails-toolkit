@@ -1,5 +1,7 @@
 """Integration tests for the guardrails pipeline."""
 
+import asyncio
+
 import pytest
 
 from guardrails.pipeline import BaseValidator, GuardrailsPipeline, GuardrailViolation
@@ -90,6 +92,91 @@ class TestGuardrailsPipeline:
         assert len(result.violations) == 1
         assert result.violations[0].severity == "warn"
         assert "WarnOnlyGuard" in result.validators_applied
+
+
+class _AsyncUppercaser(BaseValidator):
+    """Guard whose real work lives in validate_async.
+
+    Stands in for a validator that calls an external service: the async path
+    does the transform after an ``await``, and the sync validate() raises so a
+    test that forgets the async pipeline fails loudly instead of silently
+    skipping the guard.
+    """
+
+    def validate(self, text: str) -> str:
+        raise NotImplementedError("use validate_async")
+
+    async def validate_async(self, text: str) -> str:
+        await asyncio.sleep(0)
+        return text.upper()
+
+
+class _AsyncBlocker(BaseValidator):
+    """Async guard that blocks once it sees a trigger word."""
+
+    def validate(self, text: str) -> str:
+        raise NotImplementedError("use validate_async")
+
+    async def validate_async(self, text: str) -> str:
+        await asyncio.sleep(0)
+        if "boom" in text:
+            raise GuardrailViolation(self.name, "tripwire hit", severity="block")
+        return text
+
+
+class TestAsyncPipeline:
+    def test_async_guard_transforms_text(self):
+        pipe = GuardrailsPipeline(input_guards=[_AsyncUppercaser()])
+        assert asyncio.run(pipe.validate_input_async("hello")) == "HELLO"
+
+    def test_async_guards_run_in_order(self):
+        # Second guard sees the first guard's output, same as the sync path:
+        # uppercase first, then block only if the trigger survived.
+        pipe = GuardrailsPipeline(input_guards=[_AsyncUppercaser(), _AsyncBlocker()])
+        # "boom" is uppercased to "BOOM" before the blocker runs, so it passes.
+        assert asyncio.run(pipe.validate_input_async("boom")) == "BOOM"
+
+    def test_async_block_raises(self):
+        pipe = GuardrailsPipeline(input_guards=[_AsyncBlocker()])
+        with pytest.raises(GuardrailViolation, match="tripwire"):
+            asyncio.run(pipe.validate_input_async("boom goes the test"))
+
+    def test_sync_guards_work_unchanged_on_async_path(self):
+        # PIIRedactor only implements validate(); the default validate_async
+        # delegates to it, so it runs in the async pipeline with no changes.
+        pipe = GuardrailsPipeline(input_guards=[PIIRedactor(), PromptInjectionDetector()])
+        result = asyncio.run(pipe.validate_input_async("mail a@b.com please"))
+        assert "[EMAIL]" in result
+
+    def test_async_warn_does_not_abort(self):
+        class AsyncWarnGuard(BaseValidator):
+            def validate(self, text: str) -> str:
+                raise NotImplementedError
+
+            async def validate_async(self, text: str) -> str:
+                raise GuardrailViolation(self.name, "advisory only", severity="warn")
+
+        pipe = GuardrailsPipeline(input_guards=[AsyncWarnGuard(), _AsyncUppercaser()])
+        assert asyncio.run(pipe.validate_input_async("hi")) == "HI"
+
+    def test_async_full_collects_violations_without_raising(self):
+        pipe = GuardrailsPipeline(input_guards=[PIIRedactor(), _AsyncBlocker()])
+        result = asyncio.run(pipe.validate_input_full_async("boom, mail a@b.com"))
+        assert not result.is_safe
+        assert "[EMAIL]" in result.processed_text
+        assert [v.severity for v in result.violations] == ["block"]
+        assert result.validators_applied == ["PIIRedactor", "_AsyncBlocker"]
+
+    def test_async_output_guards_are_used(self):
+        pipe = GuardrailsPipeline(output_guards=[_AsyncUppercaser()])
+        assert asyncio.run(pipe.validate_output_async("hi")) == "HI"
+
+    def test_async_respects_size_cap_before_running_guards(self):
+        recorder = _RecordingValidator()
+        pipe = GuardrailsPipeline(input_guards=[recorder], max_chars=100)
+        with pytest.raises(GuardrailViolation, match="exceeds the limit"):
+            asyncio.run(pipe.validate_input_async("a" * 101))
+        assert recorder.calls == 0
 
 
 class _RecordingValidator(BaseValidator):
