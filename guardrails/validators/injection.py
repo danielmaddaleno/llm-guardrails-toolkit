@@ -53,15 +53,10 @@ class PromptInjectionDetector(BaseValidator):
         case_sensitive: bool = False,
         threshold: int = 1,
     ):
-        # A threshold below 1 makes validate() block every input: detect() can
-        # return an empty list and ``len([]) >= 0`` is still true, so clean text
-        # would trip the guard. Reject it up front instead of failing silently.
-        if threshold < 1:
-            raise ValueError(f"threshold must be at least 1, got {threshold}")
         self.patterns = self.BLOCKING_PATTERNS + (extra_patterns or [])
         self.advisory_patterns = self.ADVISORY_PATTERNS + (extra_advisory_patterns or [])
         self.flags = 0 if case_sensitive else re.IGNORECASE
-        self.threshold = threshold
+        self.threshold = self._require_min_threshold(threshold)
         # Compile once at construction so we don't rebuild every pattern on
         # each validate() call, which happens on the hot path for every
         # request. Mirrors how ToxicityDetector handles its patterns.

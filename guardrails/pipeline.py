@@ -42,6 +42,19 @@ class BaseValidator(ABC):
     def name(self) -> str:
         return self.__class__.__name__
 
+    @staticmethod
+    def _require_min_threshold(threshold: int) -> int:
+        """Return *threshold* if it is usable, else raise ValueError.
+
+        A detector blocks once ``len(detect(text)) >= threshold``. With a
+        threshold below 1 that holds for clean text too (``len([]) >= 0``), so
+        the guard would trip on everything. Every detector takes a threshold,
+        so the check lives here instead of being copied into each one.
+        """
+        if threshold < 1:
+            raise ValueError(f"threshold must be at least 1, got {threshold}")
+        return threshold
+
 
 class GuardrailViolation(Exception):
     """Raised when a guardrail is triggered."""

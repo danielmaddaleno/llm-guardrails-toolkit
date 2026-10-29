@@ -7,6 +7,7 @@ import pytest
 from guardrails.pipeline import BaseValidator, GuardrailsPipeline, GuardrailViolation
 from guardrails.validators.injection import PromptInjectionDetector
 from guardrails.validators.pii_redactor import PIIRedactor
+from guardrails.validators.secrets import SecretsDetector
 from guardrails.validators.token_budget import TokenBudget
 from guardrails.validators.toxicity import ToxicityDetector
 
@@ -225,3 +226,24 @@ class TestPipelineSizeCap:
     def test_non_positive_cap_is_rejected(self):
         with pytest.raises(ValueError, match="max_chars"):
             GuardrailsPipeline(max_chars=0)
+
+
+class TestThresholdGuard:
+    def test_valid_threshold_is_returned_unchanged(self):
+        assert BaseValidator._require_min_threshold(1) == 1
+        assert BaseValidator._require_min_threshold(5) == 5
+
+    @pytest.mark.parametrize("bad", [0, -1, -10])
+    def test_non_positive_threshold_is_rejected(self, bad):
+        with pytest.raises(ValueError, match="at least 1"):
+            BaseValidator._require_min_threshold(bad)
+
+    @pytest.mark.parametrize(
+        "factory",
+        [PromptInjectionDetector, SecretsDetector, ToxicityDetector],
+    )
+    def test_every_detector_routes_through_the_shared_guard(self, factory):
+        # The three detectors used to carry their own copy of this check. They
+        # now share one helper, so a single message is what each raises.
+        with pytest.raises(ValueError, match="threshold must be at least 1"):
+            factory(threshold=0)
