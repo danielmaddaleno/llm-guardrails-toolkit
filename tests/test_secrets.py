@@ -21,6 +21,28 @@ class TestSecretsDetector:
         token = "ghp_" + "a" * 36
         assert "github_token" in detector.detect(f"token: {token}")
 
+    def test_flags_github_fine_grained_pat(self, detector):
+        # Fine-grained PATs are github_pat_ followed by an underscore-separated
+        # run of base62, the format GitHub now issues by default. The classic
+        # gh[oprsu]_ rule never matched these, so they used to slip through.
+        token = "github_pat_11ABCDE0A0aBcDeFgHiJ_" + "b" * 59
+        assert "github_fine_grained_pat" in detector.detect(f"token: {token}")
+
+    def test_anthropic_key_is_not_reported_as_openai(self, detector):
+        # sk-ant- keys start with "sk-", so the openai rule used to claim them
+        # and the audit log named the wrong provider. They get their own label
+        # now, and the openai rule no longer fires on them.
+        token = "sk-ant-api03-" + "x" * 40
+        found = detector.detect(f"key={token}")
+        assert "anthropic_api_key" in found
+        assert "openai_api_key" not in found
+
+    def test_openai_key_still_detected_after_excluding_anthropic(self, detector):
+        for token in ("sk-" + "y" * 24, "sk-proj-" + "z" * 24):
+            found = detector.detect(f"key={token}")
+            assert "openai_api_key" in found
+            assert "anthropic_api_key" not in found
+
     def test_flags_private_key_header(self, detector):
         text = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA..."
         assert "private_key" in detector.detect(text)

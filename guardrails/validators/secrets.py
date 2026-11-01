@@ -12,10 +12,11 @@ class SecretsDetector(BaseValidator):
 
     Aimed at prompts and, more importantly, model output: an LLM that has seen
     a key in its context can echo it straight back to a user. This guard targets
-    structured, prefixed secrets (AWS keys, GitHub/Slack tokens, Google/OpenAI
-    API keys, PEM private keys) rather than high-entropy heuristics, which keeps
-    false positives low at the cost of missing unprefixed or custom tokens. Pair
-    it with a real scanner (detect-secrets, TruffleHog) for anything critical.
+    structured, prefixed secrets (AWS keys, classic and fine-grained GitHub
+    tokens, Slack tokens, Google/OpenAI/Anthropic API keys, PEM private keys)
+    rather than high-entropy heuristics, which keeps false positives low at the
+    cost of missing unprefixed or custom tokens. Pair it with a real scanner
+    (detect-secrets, TruffleHog) for anything critical.
 
     The matched value is never echoed back in the violation message, so the
     guard does not turn into a second place the secret leaks.
@@ -24,12 +25,18 @@ class SecretsDetector(BaseValidator):
     # Patterns are case-sensitive on purpose: real credential formats have fixed
     # casing (AKIA..., ghp_..., AIza...), so matching case-insensitively would
     # only widen the net and let in more false positives.
+    # The openai rule excludes the "sk-ant-" prefix so an Anthropic key is not
+    # reported as openai_api_key; Anthropic keys get their own rule below. The
+    # github_pat rule covers fine-grained tokens, which GitHub now issues by
+    # default and which the classic gh[oprsu]_ rule does not match.
     DEFAULT_PATTERNS: dict[str, str] = {
         "aws_access_key_id": r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b",
         "github_token": r"\bgh[oprsu]_[A-Za-z0-9]{36,}\b",
+        "github_fine_grained_pat": r"\bgithub_pat_[A-Za-z0-9_]{70,}\b",
         "slack_token": r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b",
         "google_api_key": r"\bAIza[0-9A-Za-z_-]{35}\b",
-        "openai_api_key": r"\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b",
+        "anthropic_api_key": r"\bsk-ant-[A-Za-z0-9_-]{20,}\b",
+        "openai_api_key": r"\bsk-(?!ant-)(?:proj-)?[A-Za-z0-9_-]{20,}\b",
         "private_key": r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----",
     }
 
