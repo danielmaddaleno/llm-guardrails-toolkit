@@ -1,6 +1,7 @@
 """LLM Guardrails Toolkit: input/output validation for LLM applications."""
 
 from guardrails.pipeline import GuardrailsPipeline
+from guardrails.validators.classifier import ClassifierValidator
 from guardrails.validators.injection import PromptInjectionDetector
 from guardrails.validators.pii_redactor import PIIRedactor
 from guardrails.validators.secrets import SecretsDetector
@@ -8,6 +9,7 @@ from guardrails.validators.token_budget import TokenBudget
 from guardrails.validators.toxicity import ToxicityDetector
 
 __all__ = [
+    "ClassifierValidator",
     "GuardrailsPipeline",
     "PIIRedactor",
     "PromptInjectionDetector",

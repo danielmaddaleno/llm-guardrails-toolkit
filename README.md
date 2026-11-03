@@ -16,6 +16,7 @@ Every call to an LLM is two trust boundaries: what the user sends in, and what t
 - Secret detection: blocks text containing prefixed credentials (AWS keys, GitHub/Slack tokens, Google/OpenAI API keys, PEM private keys) so a model does not echo a leaked key back to the user.
 - Token budget control: rejects text that would exceed a configured token estimate, no tokenizer dependency required.
 - Toxicity screening: keyword-based flagging for hate speech, self-harm, and violence categories (swap in a real classifier for production).
+- Model-based classifier hook: `ClassifierValidator` wraps any scoring function (a hosted moderation API, a local toxicity model) as a guard. It runs a sync scorer in-process and awaits an async scorer on the async pipeline, so a network call to a moderation service does not block the event loop.
 - Pluggable validators: anything implementing `BaseValidator.validate(text) -> str` can join a pipeline.
 - AWS Bedrock wrapper: `BedrockGuardedClient` runs input guards, calls Bedrock, then runs output guards, in one method call.
 
@@ -83,6 +84,23 @@ class ModerationAPIGuard(BaseValidator):
         if verdict.blocked:
             raise GuardrailViolation(self.name, "flagged by classifier")
         return text
+```
+
+When the guard is just "score the text, block past a threshold",
+`ClassifierValidator` saves writing the class. Hand it the scoring function and
+a cutoff; it awaits an async scorer on the async pipeline and runs a sync one
+in-process:
+
+```python
+from guardrails import ClassifierValidator
+
+async def score(text):
+    verdict = await moderation_client.score(text)
+    return verdict.toxicity          # 0.0 - 1.0
+
+guard = ClassifierValidator(score_fn=score, threshold=0.8, name="moderation")
+pipeline = GuardrailsPipeline(output_guards=[guard])
+await pipeline.validate_output_async(llm_response)
 ```
 
 Guards run in sequence, not in parallel, because each one's output is the next
@@ -183,7 +201,6 @@ They also fire on text nobody meant as an attack. `PromptInjectionDetector` keep
 ## Roadmap
 
 - Benchmark the regex detectors against a public prompt injection dataset
-- Add a model-based toxicity classifier as an optional validator
 
 ## License
 
