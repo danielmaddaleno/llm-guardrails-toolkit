@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -74,6 +75,57 @@ class BedrockGuardedClient:
         Raises:
             ValueError: If *kwargs* carries a key this method owns.
         """
+        self._reject_reserved(kwargs)
+
+        input_result = self.pipeline.validate_input_full(prompt)
+        if not input_result.is_safe:
+            return self._blocked_input_result(input_result)
+
+        body = self._request_body(input_result.processed_text, max_tokens, temperature, kwargs)
+        response = self._call_model(body)
+        raw_text, usage = self._read_response(response)
+
+        output_result = self.pipeline.validate_output_full(raw_text)
+        return self._final_result(input_result, output_result, usage)
+
+    async def invoke_async(
+        self,
+        prompt: str,
+        max_tokens: int = 1024,
+        temperature: float = 0.7,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Async counterpart of :meth:`invoke` for use from an event loop.
+
+        Drives the pipeline's async path, so a guard that reaches an external
+        service (an async :class:`~guardrails.validators.classifier.ClassifierValidator`
+        scoring against a moderation endpoint) is awaited instead of raising on
+        the sync path. ``boto3`` has no async client, so the blocking
+        ``invoke_model`` call is run in a worker thread, which keeps the one
+        round-trip that dominates the latency from stalling the loop while every
+        other request waits.
+
+        Same arguments, same return shape, and the same reserved-key rule as
+        :meth:`invoke`.
+        """
+        self._reject_reserved(kwargs)
+
+        input_result = await self.pipeline.validate_input_full_async(prompt)
+        if not input_result.is_safe:
+            return self._blocked_input_result(input_result)
+
+        body = self._request_body(input_result.processed_text, max_tokens, temperature, kwargs)
+        response = await asyncio.to_thread(self._call_model, body)
+        raw_text, usage = self._read_response(response)
+
+        output_result = await self.pipeline.validate_output_full_async(raw_text)
+        return self._final_result(input_result, output_result, usage)
+
+    # ------------------------------------------------------------------
+    # Shared between the sync and async paths so the two cannot drift on how a
+    # request body is built or a result is shaped; only the I/O differs.
+    @staticmethod
+    def _reject_reserved(kwargs: dict[str, Any]) -> None:
         clashing = RESERVED_BODY_KEYS.intersection(kwargs)
         if clashing:
             raise ValueError(
@@ -81,23 +133,9 @@ class BedrockGuardedClient:
                 "the guarded prompt, and overriding it would send unvalidated text to the model."
             )
 
-        # --- Input guardrails ---
-        input_result: ValidationResult = self.pipeline.validate_input_full(prompt)
-        if not input_result.is_safe:
-            return {
-                "text": None,
-                "blocked": True,
-                "stage": "input",
-                "input_validation": input_result,
-                "output_validation": None,
-                "usage": None,
-            }
-
-        safe_prompt = input_result.processed_text
-
-        # --- Call Bedrock ---
+    def _request_body(self, safe_prompt: str, max_tokens: int, temperature: float, kwargs: dict[str, Any]) -> str:
         # kwargs go first so no caller key can overwrite the guarded prompt.
-        body = json.dumps(
+        return json.dumps(
             {
                 **kwargs,
                 "anthropic_version": "bedrock-2023-05-31",
@@ -107,25 +145,39 @@ class BedrockGuardedClient:
             }
         )
 
+    def _call_model(self, body: str) -> Any:
         logger.info("Invoking Bedrock model %s", self.model_id)
-        response = self.client.invoke_model(
+        return self.client.invoke_model(
             modelId=self.model_id,
             contentType="application/json",
             accept="application/json",
             body=body,
         )
 
+    @staticmethod
+    def _read_response(response: Any) -> tuple[str, Any]:
         response_body = json.loads(response["body"].read())
         raw_text: str = response_body["content"][0]["text"]
+        return raw_text, response_body.get("usage")
 
-        # --- Output guardrails ---
-        output_result: ValidationResult = self.pipeline.validate_output_full(raw_text)
+    @staticmethod
+    def _blocked_input_result(input_result: ValidationResult) -> dict[str, Any]:
+        return {
+            "text": None,
+            "blocked": True,
+            "stage": "input",
+            "input_validation": input_result,
+            "output_validation": None,
+            "usage": None,
+        }
 
+    @staticmethod
+    def _final_result(input_result: ValidationResult, output_result: ValidationResult, usage: Any) -> dict[str, Any]:
         return {
             "text": output_result.processed_text if output_result.is_safe else None,
             "blocked": not output_result.is_safe,
             "stage": "output" if not output_result.is_safe else None,
             "input_validation": input_result,
             "output_validation": output_result,
-            "usage": response_body.get("usage"),
+            "usage": usage,
         }
