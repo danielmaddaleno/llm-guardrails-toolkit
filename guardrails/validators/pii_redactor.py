@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Callable
 
+from guardrails._text import strip_format_chars
 from guardrails.pipeline import BaseValidator
 
 
@@ -91,18 +92,25 @@ class PIIRedactor(BaseValidator):
         leftmost-longest rule and returned sorted by position, which keeps the
         result usable both for masking and for building an audit log.
         """
+        # Match against a copy with the zero-width and bidi characters removed,
+        # the same obfuscation the injection and toxicity detectors fold away,
+        # so a card or SSN split by an invisible character is still found. The
+        # index map carries each match back to its span in the original text,
+        # which validate() masks, so the invisible characters wedged inside a
+        # value are masked along with it rather than left behind.
+        cleaned, orig_pos = strip_format_chars(text)
         candidates: list[dict] = []
         for label, pattern in self.patterns.items():
             confirm = self.CONFIRMERS.get(label)
-            for match in re.finditer(pattern, text):
+            for match in re.finditer(pattern, cleaned):
                 if confirm is not None and not confirm(match.group()):
                     continue
                 candidates.append(
                     {
                         "type": label,
                         "value": match.group(),
-                        "start": match.start(),
-                        "end": match.end(),
+                        "start": orig_pos[match.start()],
+                        "end": orig_pos[match.end() - 1] + 1,
                     }
                 )
 

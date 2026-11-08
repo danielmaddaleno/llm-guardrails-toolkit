@@ -111,6 +111,54 @@ class TestPIIRedactor:
         assert redactor.validate("id 123456 end") == "id [LONG] end"
 
 
+class TestInvisibleCharacterEvasion:
+    """PII split by a zero-width or bidi character still has to be masked.
+
+    The injection and toxicity detectors fold these characters away before
+    matching; the redactor used to scan the raw text, so a card or SSN with an
+    invisible character wedged between its digits slipped through unmasked.
+    """
+
+    # Written as code points so the source stays readable: a zero-width space,
+    # a left-to-right mark, and a word joiner.
+    WEDGES = [chr(0x200B), chr(0x200E), chr(0x2060)]
+
+    @pytest.mark.parametrize("wedge", WEDGES)
+    def test_ssn_split_by_an_invisible_char_is_redacted(self, redactor, wedge):
+        result = redactor.validate(f"ssn 123-45-67{wedge}89 on file")
+        assert result == "ssn [SSN] on file"
+
+    @pytest.mark.parametrize("wedge", WEDGES)
+    def test_credit_card_split_by_an_invisible_char_is_redacted(self, redactor, wedge):
+        # A valid Luhn card stays valid once the wedge is folded out, so the
+        # checksum confirmation still passes and the card is masked.
+        result = redactor.validate(f"card 4111 1111 1111{wedge} 1111 ok")
+        assert result == "card [CREDIT_CARD] ok"
+
+    @pytest.mark.parametrize("wedge", WEDGES)
+    def test_email_split_by_an_invisible_char_is_redacted(self, redactor, wedge):
+        # The leading "jo" used to survive as "jo[EMAIL]" because the match
+        # started only after the wedge broke the local part.
+        result = redactor.validate(f"write jo{wedge}hn@example.com now")
+        assert result == "write [EMAIL] now"
+
+    def test_wedge_inside_the_value_is_masked_with_it(self, redactor):
+        # The invisible character sits between masked digits, so it is consumed
+        # by the mask rather than left dangling next to it.
+        assert chr(0x200B) not in redactor.validate(f"123-45-67{chr(0x200B)}89")
+
+    def test_invisible_char_outside_any_pii_is_left_in_place(self, redactor):
+        # A wedge that is not inside a value must not be swallowed: only the
+        # span of a real match is replaced.
+        assert redactor.validate(f"safe{chr(0x200B)} text") == f"safe{chr(0x200B)} text"
+
+    def test_a_non_card_stays_untouched_even_when_split(self, redactor):
+        # Folding the wedge must not turn a Luhn-failing 16-digit string into a
+        # masked card; it still fails the checksum and survives verbatim.
+        text = f"ref 4111-1111-1111-111{chr(0x200B)}2 here"
+        assert redactor.validate(text) == text
+
+
 class TestEmailScanCost:
     """The email rule must stay linear on hostile input."""
 
