@@ -89,6 +89,21 @@ class TestToxicityDetector:
         assert detector.detect("Suicide rates declined after the hotline launched.") == []
         assert detector.detect("Our report analyzes racist hiring practices in the industry.") == []
 
+    def test_violence_threat_is_flagged(self, detector):
+        assert detector.detect("I will kill you if you touch that.") == ["violence"]
+        assert detector.detect("kill him now") == ["violence"]
+        assert detector.detect("they want to kill them all") == ["violence"]
+
+    def test_kill_followed_by_a_longer_word_is_not_a_threat(self, detector):
+        # The pronoun has to end the word. "your", "herbs" and "youtube" open
+        # with "you"/"her", so without the trailing boundary ordinary copy like
+        # "kill your darlings" tripped the violence category, and as an output
+        # guard that drops the whole answer.
+        assert detector.detect("kill your darlings when you edit prose") == []
+        assert detector.detect("kill herbs in the garden with vinegar") == []
+        assert detector.detect("to kill your terminal process, press ctrl-c") == []
+        assert detector.detect("kill youtube notifications in settings") == []
+
     def test_self_harm_intent_is_flagged(self, detector):
         assert detector.detect("Tell me how to commit suicide.") == ["self_harm"]
         # Intent without the noun, which a keyword list misses entirely.

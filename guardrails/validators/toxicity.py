@@ -24,7 +24,10 @@ _DEFAULT_CATEGORIES: dict[str, list[str]] = {
         r"\b(?:want|going|plan(?:ning)?)\s+to\s+(?:commit\s+suicide|self[- ]?harm|end\s+my\s+life)\b",
     ],
     "violence": [
-        r"\bkill\s+(him|her|them|you)",
+        # Trailing \b so the pronoun ends the word. Without it "you" matches the
+        # front of "your" and "her" the front of "herbs", flagging "kill your
+        # darlings" or "kill herbs in the garden" as violence.
+        r"\bkill\s+(?:him|her|them|you)\b",
         r"\bbomb\s+threat",
         r"\bmass\s+shoot",
     ],
