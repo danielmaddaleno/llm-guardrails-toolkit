@@ -71,6 +71,24 @@ class TestSecretsDetector:
         found = detector.detect("use TKN-123456 to authenticate")
         assert "internal_token" in found
 
+    def test_zero_width_char_inside_key_is_still_detected(self, detector):
+        # A zero-width space wedged between two characters of the key leaves it
+        # reading normally to a human but breaks the literal AKIA... pattern.
+        # The detector folds Cf characters away first, so the key is still found.
+        evaded = "export AWS_ACCESS_KEY_ID=AKIA​IOSFODNN7EXAMPLE"
+        assert "aws_access_key_id" in detector.detect(evaded)
+
+    def test_fullwidth_prefix_is_still_detected(self, detector):
+        # Fullwidth look-alikes of the "sk-" prefix dodge the ASCII pattern until
+        # NFKC collapses them back to their plain form.
+        token = "ｓｋ-ant-api03-" + "x" * 40
+        assert "anthropic_api_key" in detector.detect(f"key={token}")
+
+    def test_validate_blocks_an_evaded_key(self, detector):
+        evaded = "here is the key AKIA​IOSFODNN7EXAMPLE"
+        with pytest.raises(GuardrailViolation):
+            detector.validate(evaded)
+
     def test_rejects_non_positive_threshold(self):
         # A threshold below 1 would make validate() block even clean text, since
         # an empty detection list still satisfies len(found) >= 0.

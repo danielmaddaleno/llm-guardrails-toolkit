@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from guardrails._text import normalize_for_matching
 from guardrails.pipeline import BaseValidator, GuardrailViolation
 
 
@@ -63,5 +64,14 @@ class SecretsDetector(BaseValidator):
         return text
 
     def detect(self, text: str) -> list[str]:
-        """Return the names of the secret types found in the text."""
-        return [name for name, pattern in self._compiled.items() if pattern.search(text)]
+        """Return the names of the secret types found in the text.
+
+        Matching runs against a normalized copy, the same fold the injection,
+        toxicity, and PII detectors apply. A credential prefix is literal
+        (``AKIA``, ``ghp_``, ``sk-ant-``), so a zero-width space wedged inside a
+        key, or a fullwidth look-alike of its prefix, broke every pattern and
+        the key passed straight through, which is exactly the key echo this
+        guard exists to stop.
+        """
+        normalized = normalize_for_matching(text)
+        return [name for name, pattern in self._compiled.items() if pattern.search(normalized)]
