@@ -23,9 +23,15 @@ class PromptInjectionDetector(BaseValidator):
     """
 
     BLOCKING_PATTERNS = [
-        r"ignore\s+(all\s+)?previous\s+instructions",
-        r"ignore\s+(all\s+)?above",
-        r"disregard\s+(all\s+)?(previous|prior)\s+(instructions?|prompts?|directions?|rules|messages?)",
+        # ignore/disregard share one verb family: an optional determiner
+        # ("the"/"all"/"your") then previous/prior instructions, directions,
+        # rules, messages, or context. The old ignore rule matched only
+        # "previous instructions", missing "ignore the previous instructions"
+        # and "ignore all prior directions".
+        r"(?:ignore|disregard)\s+(?:all\s+|the\s+|any\s+|your\s+)*"
+        r"(?:previous|prior|earlier|preceding)\s+"
+        r"(?:instructions?|prompts?|directions?|rules|messages?|context)",
+        r"(?:ignore|disregard)\s+(?:all\s+|the\s+|everything\s+)?above",
         r"forget\s+(everything|all|your)\s+(above|previous|instructions)",
         r"(show|reveal|print|output)\s+(me\s+)?(the\s+)?system\s*prompt",
         r"do\s+not\s+follow\s+your\s+(rules|guidelines|instructions)",
