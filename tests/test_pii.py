@@ -100,6 +100,27 @@ class TestPIIRedactor:
         detected = redactor.detect("pay with 4111 1111 1111 1111 today")
         assert [d["type"] for d in detected] == ["CREDIT_CARD"]
 
+    @pytest.mark.parametrize("card", ["3782 822463 10005", "378282246310005", "371449635398431"])
+    def test_amex_15_digit_card_is_redacted(self, redactor, card):
+        # Amex numbers are 15 digits grouped 4-6-5, so the 4-4-4-4-only rule
+        # masked none of them even though they pass Luhn. Grouped or not, the
+        # whole number must be masked.
+        result = redactor.validate(f"charge {card} today")
+        assert result == "charge [CREDIT_CARD] today"
+
+    def test_diners_14_digit_card_is_redacted(self, redactor):
+        # A 14-digit Diners number (grouped 4-6-4) previously had its middle
+        # ten digits caught by the phone rule, leaking the first four as
+        # "3056 [PHONE]"; it must mask as a single card instead.
+        assert redactor.validate("bill 3056 930902 5904 now") == "bill [CREDIT_CARD] now"
+
+    def test_15_digit_non_card_failing_luhn_is_not_redacted(self, redactor):
+        # Widening the shape must not mask any 15-digit run: one that fails the
+        # checksum (last digit of a valid Amex flipped) is not a card.
+        text = "ticket 378282246310006 reissued"
+        assert redactor.validate(text) == text
+        assert not any(d["type"] == "CREDIT_CARD" for d in redactor.detect(text))
+
     def test_overlapping_matches_collapse_to_leftmost_longest(self):
         # Two custom rules that both match the same digits: the longer span
         # should win and the shorter overlapping ones should be dropped, so a

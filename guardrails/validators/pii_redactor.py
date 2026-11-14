@@ -45,7 +45,15 @@ class PIIRedactor(BaseValidator):
         "EMAIL": r"\b[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}\b",
         "PHONE": r"(?<!\w)(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",
         "SSN": r"\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b",
-        "CREDIT_CARD": r"\b(?:\d{4}[-.\s]?){3}\d{4}\b",
+        # Not every card is 16 digits in 4-4-4-4: Amex is 15 (4-6-5) and Diners
+        # 14 (4-6-4), and the old pattern left both unmasked. Luhn (CONFIRMERS
+        # below) still drops anything that only looks like a card, so matching
+        # the wider set of shapes does not loosen what gets redacted.
+        "CREDIT_CARD": (
+            r"\b(?:\d{4}[-.\s]?\d{4}[-.\s]?\d{4}[-.\s]?\d{4}"
+            r"|\d{4}[-.\s]?\d{6}[-.\s]?\d{5}"
+            r"|\d{4}[-.\s]?\d{6}[-.\s]?\d{4})\b"
+        ),
         "NAME": None,  # Handled separately with NER if available
     }
 
