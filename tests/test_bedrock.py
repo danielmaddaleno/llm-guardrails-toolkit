@@ -47,6 +47,21 @@ class _StubBedrockRuntimeClient:
         return {"body": _StubBody(payload)}
 
 
+class _FixedBlocksClient:
+    """Returns a response whose content is a fixed list of blocks."""
+
+    def __init__(self, blocks):
+        self.blocks = blocks
+        self.calls = 0
+        self.last_body = None
+
+    def invoke_model(self, modelId, contentType, accept, body):
+        self.calls += 1
+        self.last_body = json.loads(body)
+        payload = {"content": self.blocks, "usage": {"input_tokens": 1, "output_tokens": 2}}
+        return {"body": _StubBody(payload)}
+
+
 class _StubSession:
     def __init__(self, client):
         self._client = client
@@ -91,6 +106,44 @@ class TestBedrockGuardedClient:
         sent_prompt = stub.last_body["messages"][0]["content"]
         assert "john.doe@example.com" not in sent_prompt
         assert "[EMAIL]" in sent_prompt
+
+    def test_reply_split_across_text_blocks_is_fully_read(self):
+        blocks = [
+            {"type": "text", "text": "First part. "},
+            {"type": "text", "text": "Second part."},
+        ]
+        stub = _FixedBlocksClient(blocks)
+        pipeline = GuardrailsPipeline()
+        client = BedrockGuardedClient(pipeline=pipeline, boto3_session=_StubSession(stub))
+        result = client.invoke(prompt="hi")
+        assert result["blocked"] is False
+        assert result["text"] == "First part. Second part."
+
+    def test_output_guard_sees_text_in_a_later_block(self):
+        # PII sitting in the second block must still be masked. With only the
+        # first block read, the output guard never scanned this address.
+        blocks = [
+            {"type": "text", "text": "Here is the contact: "},
+            {"type": "text", "text": "mail bob@example.com please."},
+        ]
+        stub = _FixedBlocksClient(blocks)
+        pipeline = GuardrailsPipeline(output_guards=[PIIRedactor()])
+        client = BedrockGuardedClient(pipeline=pipeline, boto3_session=_StubSession(stub))
+        result = client.invoke(prompt="hi")
+        assert "bob@example.com" not in result["text"]
+        assert result["text"] == "Here is the contact: mail [EMAIL] please."
+
+    def test_leading_tool_use_block_does_not_break_reading(self):
+        blocks = [
+            {"type": "tool_use", "id": "t1", "name": "lookup", "input": {}},
+            {"type": "text", "text": "the answer"},
+        ]
+        stub = _FixedBlocksClient(blocks)
+        pipeline = GuardrailsPipeline()
+        client = BedrockGuardedClient(pipeline=pipeline, boto3_session=_StubSession(stub))
+        result = client.invoke(prompt="hi")
+        assert result["blocked"] is False
+        assert result["text"] == "the answer"
 
     def test_invoke_forwards_max_tokens_and_temperature(self):
         client, stub = _make_client()

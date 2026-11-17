@@ -156,8 +156,14 @@ class BedrockGuardedClient:
 
     @staticmethod
     def _read_response(response: Any) -> tuple[str, Any]:
+        # Messages responses carry a list of content blocks. A reply can arrive
+        # as several text blocks, and tool use interleaves non-text blocks, so
+        # taking content[0]["text"] returned a truncated answer and left the
+        # rest unseen by the output guards, besides raising KeyError when the
+        # first block was not text. Join the text of every text block instead.
         response_body = json.loads(response["body"].read())
-        raw_text: str = response_body["content"][0]["text"]
+        blocks = response_body.get("content", [])
+        raw_text = "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
         return raw_text, response_body.get("usage")
 
     @staticmethod
